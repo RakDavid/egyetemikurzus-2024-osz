@@ -44,5 +44,42 @@ namespace Koltsegkezelo.Services
             _repository.SaveExpenses(expenses, date);
         }
 
+        public IEnumerable<(string CategoryName, decimal Total)> GetExpenseSummaryByCategory(List<ExpenseRecord> expenses)
+        {
+            return expenses
+                .GroupBy(e => e.Category.Name)
+                .Select(g => (CategoryName: g.Key, Total: g.Sum(e => e.Amount)));
+        }
+
+        public (List<(DateTime Month, decimal Total)>, decimal) GetYearlySpendingSummary(int year, IExpenseRepository repository)
+        {
+            var monthlyTotals = new List<(DateTime Month, decimal Total)>();
+            var availableMonths = repository.GetAvailableMonths();
+
+            foreach (var month in availableMonths.Where(m => m.Year == year))
+            {
+                var monthlyExpenses = repository.LoadExpenses(month);
+                var total = monthlyExpenses.Sum(e => e.Amount);
+                monthlyTotals.Add((Month: month, Total: total));
+            }
+
+            decimal averageSpending = monthlyTotals.Any() ? monthlyTotals.Average(mt => mt.Total) : 0;
+
+            return (monthlyTotals, averageSpending);
+        }
+
+        public (List<(string CategoryName, string Description, decimal Amount)>, Dictionary<string, decimal>) GetMonthlySummaryByCategory(List<ExpenseRecord> expenses)
+        {
+            var expenseDetails = expenses
+                .OrderBy(e => e.Category.Name)
+                .Select(e => (CategoryName: e.Category.Name, Description: e.Description, Amount: e.Amount))
+                .ToList();
+
+            var categoryTotals = expenses
+                .GroupBy(e => e.Category.Name)
+                .ToDictionary(g => g.Key, g => g.Sum(e => e.Amount));
+
+            return (expenseDetails, categoryTotals);
+        }
     }
 }

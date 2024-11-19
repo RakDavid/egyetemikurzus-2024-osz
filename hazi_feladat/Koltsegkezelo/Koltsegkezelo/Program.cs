@@ -34,6 +34,12 @@ class Program
                 case "1":
                     AddExpense(ui, service, repository);
                     break;
+                case "2":
+                    ViewMonthlySummary(ui, service, repository);
+                    break;
+                case "3":
+                    ViewYearlySummary(ui, service, repository);
+                    break;
                 case "4":
                     return;
                 default:
@@ -141,5 +147,96 @@ class Program
         ui.DisplayMessage($"Költség hozzáadva erre az időpontra: {date:yyyy-MM-dd}");
     }
 
-    
+    static void ViewMonthlySummary(IUserInterface ui, ExpenseService service, IExpenseRepository repository)
+    {
+        Console.Clear();
+        var availableMonths = repository.GetAvailableMonths();
+        if (!availableMonths.Any())
+        {
+            ui.DisplayMessage("Nincsenek elérhető hónapok költségadatokkal.");
+            return;
+        }
+
+        ui.DisplayMessage("Elérhető hónapok az összegzéshez:");
+        for (int i = 0; i < availableMonths.Count; i++)
+        {
+            ui.DisplayMessage($"{i + 1}. {availableMonths[i]:yyyy-MM}");
+        }
+
+        int monthIndex = int.Parse(ui.GetUserInput("Adja meg az összegzendő hónap számát: ")) - 1;
+        if (monthIndex < 0 || monthIndex >= availableMonths.Count)
+        {
+            ui.DisplayMessage("Érvénytelen választás.");
+            return;
+        }
+
+        DateTime selectedMonth = availableMonths[monthIndex];
+
+        List<ExpenseRecord> monthlyExpenses = repository.LoadExpenses(selectedMonth);
+        if (monthlyExpenses.Count == 0)
+        {
+            ui.DisplayMessage("Nincsenek költségek a megadott hónaphoz: " + selectedMonth.ToString("yyyy-MM"));
+            return;
+        }
+
+        var (expenseDetails, categoryTotals) = service.GetMonthlySummaryByCategory(monthlyExpenses);
+
+        ui.DisplayMessage("\nKöltségek összegzése:");
+        foreach (var item in expenseDetails)
+        {
+            ui.DisplayMessage($"Kategória: {item.CategoryName}, Leírás: {item.Description}, Összeg: {item.Amount:C}");
+        }
+
+        ui.DisplayMessage("\nKategóriánkénti összesített költés:");
+        foreach (var category in categoryTotals)
+        {
+            ui.DisplayMessage($"{category.Key}: {category.Value:C}");
+        }
+
+        decimal totalSpending = monthlyExpenses.Sum(e => e.Amount);
+        ui.DisplayMessage($"\nTeljes költés: {totalSpending:C}");
+    }
+
+    static void ViewYearlySummary(IUserInterface ui, ExpenseService service, IExpenseRepository repository)
+    {
+        Console.Clear();
+        var availableYears = repository.GetAvailableMonths()
+                                       .Select(m => m.Year)
+                                       .Distinct()
+                                       .OrderBy(y => y)
+                                       .ToList();
+
+        if (!availableYears.Any())
+        {
+            ui.DisplayMessage("Nincsenek elérhető évek költségadatokkal.");
+            return;
+        }
+
+        ui.DisplayMessage("Elérhető évek az összegzéshez:");
+        for (int i = 0; i < availableYears.Count; i++)
+        {
+            ui.DisplayMessage($"{i + 1}. {availableYears[i]}");
+        }
+
+        int yearIndex = int.Parse(ui.GetUserInput("Adja meg az összegzendő év számát: ")) - 1;
+        if (yearIndex < 0 || yearIndex >= availableYears.Count)
+        {
+            ui.DisplayMessage("Érvénytelen választás.");
+            return;
+        }
+
+        int selectedYear = availableYears[yearIndex];
+
+        var (monthlyTotals, averageSpending) = service.GetYearlySpendingSummary(selectedYear, repository);
+
+        ui.DisplayMessage($"\nÉves költési összegzés ehhez az évhez {selectedYear}:");
+        foreach (var (Month, Total) in monthlyTotals)
+        {
+            ui.DisplayMessage($"{Month:MMMM}: {Total:C}");
+        }
+
+        ui.DisplayMessage($"\nHavi átlagos költés: {averageSpending:C}");
+    }
+
+
 }
